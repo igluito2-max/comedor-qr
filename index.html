@@ -59,13 +59,15 @@ loadDB();
 
 // --- Check ID y enviar asistencia ---
 async function checkID(id){
-    id = id.trim(); // elimina espacios invisibles del QR
+    console.log("ID recibido del QR:", `"${id}"`);
+    id = id.trim(); // elimina espacios invisibles
+    console.log("ID tras trim:", `"${id}"`);
+
     const turno = document.getElementById("select-turno").value;
     const resultadoDiv = document.getElementById("qr-result");
     const tbody = document.querySelector("#historial tbody");
 
     if(DB[id]){
-        // Asegurarse de que sea número
         let comida = Number(DB[id][turno]);
         let estado = comida === 1 ? "Asistió" : "No asistió";
 
@@ -89,6 +91,7 @@ async function checkID(id){
         resultadoDiv.className = "rojo";
     }
 }
+
 
 
 // --- Escáner QR ---
