@@ -1,0 +1,4 @@
+ID,Nombre,ViernesComida,ViernesCena,SabadoComida,SabadoCena,DomingoComida,DomingoCena
+R001,Ana López,1,0,1,1,0,1
+R002,Juan Pérez,0,1,1,0,1,0
+R003,Marta Gómez,1,1,0,0,1,1
