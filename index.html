@@ -59,30 +59,37 @@ loadDB();
 
 // --- Check ID y enviar asistencia ---
 async function checkID(id){
+    id = id.trim(); // elimina espacios invisibles del QR
     const turno = document.getElementById("select-turno").value;
     const resultadoDiv = document.getElementById("qr-result");
     const tbody = document.querySelector("#historial tbody");
-    if(DB[id]){
-        let estado = DB[id][turno]==1 ? "Asistió":"No asistió";
-        resultadoDiv.innerHTML = DB[id].Nombre + (estado=="Asistió"?" puede comer ✅":" NO tiene esta comida ❌");
-        resultadoDiv.className = estado=="Asistió"?"verde":"rojo";
 
-        // Enviar a Google Sheets
+    if(DB[id]){
+        // Asegurarse de que sea número
+        let comida = Number(DB[id][turno]);
+        let estado = comida === 1 ? "Asistió" : "No asistió";
+
+        resultadoDiv.innerHTML = DB[id].Nombre + (estado=="Asistió" ? " puede comer ✅" : " NO tiene esta comida ❌");
+        resultadoDiv.className = estado=="Asistió" ? "verde" : "rojo";
+
+        // Enviar registro a Google Sheets
         await fetch(POST_URL,{
             method:"POST",
             headers:{"Content-Type":"application/json"},
             body: JSON.stringify({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado})
         });
 
-        // Añadir a historial local
+        // Añadir al historial local
         asistencia.push({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado});
         const row = document.createElement("tr");
         row.innerHTML = `<td>${id}</td><td>${DB[id].Nombre}</td><td>${turno}</td><td>${estado}</td>`;
         tbody.appendChild(row);
     } else {
-        resultadoDiv.innerHTML = "ID no válido ❌"; resultadoDiv.className="rojo";
+        resultadoDiv.innerHTML = "ID no válido ❌";
+        resultadoDiv.className = "rojo";
     }
 }
+
 
 // --- Escáner QR ---
 function onScanSuccess(decodedText){
