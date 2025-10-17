@@ -56,7 +56,7 @@
                 const data = await res.json();
                 DB = {};
                 data.forEach(row => {
-                    DB[row.ID.trim().toUpperCase()] = row;
+                    DB[row.id.trim().toUpperCase()] = row;
                 });
                 document.getElementById("qr-debug").innerText = "DB cargada ✅";
             }catch(err){
@@ -64,6 +64,7 @@
                 document.getElementById("qr-debug").innerText = "Error cargando DB ❌";
             }
         }
+
 
         loadDB();
 
@@ -78,7 +79,7 @@
             const tbody = document.querySelector("#historial tbody");
 
             if(DB[id]){
-                let comida = Number(DB[id][turno]);
+                let comida = Number(DB[id][turno].trim());
                 let estado = comida === 1 ? "Asistió" : "No asistió";
 
                 resultadoDiv.innerHTML = DB[id].Nombre + (estado=="Asistió" ? " puede comer ✅" : " NO tiene esta comida ❌");
@@ -111,9 +112,11 @@
             checkID(decodedText);
         }
 
+        await loadDB(); // Espera a que la DB esté lista
         let html5QrcodeScanner = new Html5QrcodeScanner(
             "qr-reader", { fps: 10, qrbox: 250 });
         html5QrcodeScanner.render(onScanSuccess);
+
 
         // Actualizar la DB cada 10 segundos
         setInterval(loadDB, 10000);
