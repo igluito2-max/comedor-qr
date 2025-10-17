@@ -55,7 +55,6 @@
                 const data = await res.json();
                 DB = {};
                 data.forEach(row => {
-                    // Ajusta la propiedad según tu JSON (ID o id)
                     DB[row.id.trim().toUpperCase()] = row;
                 });
                 document.getElementById("qr-debug").innerText = "DB cargada ✅";
@@ -105,18 +104,17 @@
             }
         }
 
-        // Inicializar escáner después de cargar DB
-        async function initScanner(){
-            await loadDB();
+        // Inicializar escáner y DB cuando el DOM esté listo
+        document.addEventListener("DOMContentLoaded", () => {
+            // Inicializar escáner de inmediato
             let html5QrcodeScanner = new Html5QrcodeScanner(
                 "qr-reader", { fps: 10, qrbox: 250 });
             html5QrcodeScanner.render(checkID);
-        }
 
-        initScanner();
-
-        // Recargar DB cada 10 segundos
-        setInterval(loadDB, 10000);
+            // Cargar DB en segundo plano
+            loadDB();
+            setInterval(loadDB, 10000);
+        });
     </script>
 </body>
 </html>
