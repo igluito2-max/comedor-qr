@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Control Comedor - Real Time</title>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<style>
+body { font-family: Arial; text-align: center; margin:20px; }
+#qr-reader { margin:20px auto; }
+#qr-result { margin-top: 20px; font-weight:bold; font-size:1.2em; }
+.verde { color: green; } .rojo { color:red; }
+table { margin:20px auto; border-collapse:collapse; width:80%; }
+th, td { border:1px solid #ccc; padding:5px; text-align:center; }
+th { background:#eee; }
+button { margin:20px; padding:10px 20px; }
+</style>
+</head>
+<body>
+<h1>Control Comedor - Real Time</h1>
+
+<div id="turno">
+<label for="select-turno">Selecciona turno:</label>
+<select id="select-turno">
+<option value="Viernes_Comida">Viernes - Comida</option>
+<option value="Viernes_Cena">Viernes - Cena</option>
+<option value="Sabado_Comida">Sábado - Comida</option>
+<option value="Sabado_Cena">Sábado - Cena</option>
+<option value="Domingo_Comida">Domingo - Comida</option>
+<option value="Domingo_Cena">Domingo - Cena</option>
+</select>
+</div>
+
+<div id="qr-reader" style="width:300px;"></div>
+<div id="qr-result">Resultado del QR aparecerá aquí</div>
+
+<h3>Historial de Escaneos</h3>
+<table id="historial">
+<thead><tr><th>ID</th><th>Nombre</th><th>Turno</th><th>Estado</th></tr></thead>
+<tbody></tbody>
+</table>
+
+<button onclick="exportCSV()">Exportar CSV</button>
+
+<script>
+let DB = {};
+const GET_URL = "https://script.google.com/macros/s/AKfycbzpXBHfkfkKagWrcwv9mjnm30Dzr7yC7Hlm53Nz5P9lpsz4VrwtUoqVZ6Wfr6KFvool/exec";
+const POST_URL = "https://script.google.com/macros/s/AKfycbzpXBHfkfkKagWrcwv9mjnm30Dzr7yC7Hlm53Nz5P9lpsz4VrwtUoqVZ6Wfr6KFvool/exec";
+
+let asistencia = [];
+
+// --- Cargar residentes desde Apps Script ---
+async function loadDB(){
+    const res = await fetch(GET_URL);
+    DB = {};
+    const data = await res.json();
+    data.forEach(r => { DB[r.ID] = r; });
+}
+loadDB();
+
+// --- Check ID y enviar asistencia ---
+async function checkID(id){
+    const turno = document.getElementById("select-turno").value;
+    const resultadoDiv = document.getElementById("qr-result");
+    const tbody = document.querySelector("#historial tbody");
+    if(DB[id]){
+        let estado = DB[id][turno]==1 ? "Asistió":"No asistió";
+        resultadoDiv.innerHTML = DB[id].Nombre + (estado=="Asistió"?" puede comer ✅":" NO tiene esta comida ❌");
+        resultadoDiv.className = estado=="Asistió"?"verde":"rojo";
+
+        // Enviar a Google Sheets
+        await fetch(POST_URL,{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado})
+        });
+
+        // Añadir a historial local
+        asistencia.push({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado});
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${id}</td><td>${DB[id].Nombre}</td><td>${turno}</td><td>${estado}</td>`;
+        tbody.appendChild(row);
+    } else {
+        resultadoDiv.innerHTML = "ID no válido ❌"; resultadoDiv.className="rojo";
+    }
+}
+
+// --- Escáner QR ---
+function onScanSuccess(decodedText){
+    checkID(decodedText);
+}
+let html5QrcodeScanner = new Html5QrcodeScanner("qr-reader",{fps:10,qrbox:250});
+html5QrcodeScanner.render(onScanSuccess, ()=>{});
+
+// --- Exportar CSV ---
+function exportCSV(){
+    if(asistencia.length==0){alert("No hay registros"); return;}
+    let csv = "ID,Nombre,Turno,Estado\n";
+    asistencia.forEach(a=>{csv+=`${a.id},${a.nombre},${a.turno},${a.estado}\n`});
+    const blob = new Blob([csv],{type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download="asistencia.csv"; a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
