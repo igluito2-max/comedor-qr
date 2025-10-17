@@ -6,6 +6,7 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         #qr-result { font-size: 1.2em; margin: 10px 0; }
+        #qr-debug { font-size: 1em; color: blue; margin: 5px 0; }
         .verde { color: green; }
         .rojo { color: red; }
         table { border-collapse: collapse; width: 100%; margin-top: 20px; }
@@ -27,6 +28,7 @@
 
     <div id="qr-reader" style="width: 300px; margin-top:20px;"></div>
     <div id="qr-result"></div>
+    <div id="qr-debug">Esperando QR...</div>
 
     <h2>Historial</h2>
     <table id="historial">
@@ -44,8 +46,8 @@
     <script>
         const GET_URL = "https://script.google.com/macros/s/AKfycbzRh8LvdxxdZH88fpspNjzlPwTswt-GQsR1YHarRdPYSO4T6wXT9uIXeaaQZY5RtUHY/exec";
         const POST_URL = GET_URL;
-        let DB = {}; // Datos de residentes
-        let asistencia = []; // Historial local
+        let DB = {}; 
+        let asistencia = []; 
 
         // Cargar residentes desde Google Sheets
         async function loadDB(){
@@ -56,8 +58,10 @@
                 data.forEach(row => {
                     DB[row.ID.trim().toUpperCase()] = row;
                 });
+                document.getElementById("qr-debug").innerText = "DB cargada ✅";
             }catch(err){
                 console.error("Error cargando DB:", err);
+                document.getElementById("qr-debug").innerText = "Error cargando DB ❌";
             }
         }
 
@@ -65,7 +69,10 @@
 
         // Función que se llama cuando se escanea un QR
         async function checkID(id){
-            id = id.trim().toUpperCase(); // normalizar
+            const debugDiv = document.getElementById("qr-debug");
+            debugDiv.innerText = "QR leído: [" + id + "]";
+
+            id = id.trim().toUpperCase();
             const turno = document.getElementById("select-turno").value;
             const resultadoDiv = document.getElementById("qr-result");
             const tbody = document.querySelector("#historial tbody");
@@ -78,11 +85,15 @@
                 resultadoDiv.className = estado=="Asistió" ? "verde" : "rojo";
 
                 // Enviar registro a Google Sheets
-                await fetch(POST_URL,{
-                    method:"POST",
-                    headers:{"Content-Type":"application/json"},
-                    body: JSON.stringify({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado})
-                });
+                try{
+                    await fetch(POST_URL,{
+                        method:"POST",
+                        headers:{"Content-Type":"application/json"},
+                        body: JSON.stringify({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado})
+                    });
+                }catch(e){
+                    console.error("Error enviando asistencia:", e);
+                }
 
                 // Añadir al historial local
                 asistencia.push({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado});
