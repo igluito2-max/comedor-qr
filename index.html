@@ -44,28 +44,27 @@
     </table>
 
     <script>
-        const GET_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLjtTLw4R7pTL6zh8koU3YyoFkz5fCsBFzSQAxiSfSG3TAjPniYFTc8Ygm335C9NS65yco0beeZUGcWBlgaQrlqnl33btSZ77MuwLbtbpzied_9ruIp_bxLgKiDn1-whygAkwI2jFwCl55X6z5Jc8a0vXuq6NZh9o0V5tDrzo-GwK0ZyJ8FR6vGd37uO4o5SWjhGO_bynP0nQmyeRZTaWbPWErf-jFt9wMuaYsCUy3O2xO_1K9FtxCU5rekcyrFv5eB7kKKWsB9PjSJJLYFVsNI9XKo4iN"
+        const GET_URL = "https://script.google.com/macros/s/AKfycbyHgXccC8ygFN5w28-wMEsvLnvFBL2Is_CSQv6-DXiddNA1UZaoLLyv64ry_XXXKmf7/exec";
         const POST_URL = GET_URL;
         let DB = {};
         let asistencia = [];
 
-        // Cargar DB desde Web App
         async function loadDB(){
-            try{
+            try {
                 const res = await fetch(GET_URL);
                 const data = await res.json();
                 DB = {};
                 data.forEach(row => {
-                    DB[row.id.trim().toUpperCase()] = row;
+                    DB[row.ID.trim().toUpperCase()] = row; // Mayúsculas para normalizar
                 });
                 document.getElementById("qr-debug").innerText = "DB cargada ✅";
-            }catch(err){
+                console.log("DB cargada:", DB);
+            } catch(err) {
                 console.error("Error cargando DB:", err);
                 document.getElementById("qr-debug").innerText = "Error cargando DB ❌";
             }
         }
 
-        // Función que se llama cuando se escanea un QR
         async function checkID(id){
             const debugDiv = document.getElementById("qr-debug");
             debugDiv.innerText = "QR leído: [" + id + "]";
@@ -82,18 +81,16 @@
                 resultadoDiv.innerHTML = DB[id].Nombre + (estado=="Asistió" ? " puede comer ✅" : " NO tiene esta comida ❌");
                 resultadoDiv.className = estado=="Asistió" ? "verde" : "rojo";
 
-                // Enviar registro a Google Sheets
-                try{
-                    await fetch(POST_URL,{
+                try {
+                    await fetch(POST_URL, {
                         method:"POST",
                         headers:{"Content-Type":"application/json"},
                         body: JSON.stringify({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado})
                     });
-                }catch(e){
+                } catch(e) {
                     console.error("Error enviando asistencia:", e);
                 }
 
-                // Añadir al historial local
                 asistencia.push({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado});
                 const row = document.createElement("tr");
                 row.innerHTML = `<td>${id}</td><td>${DB[id].Nombre}</td><td>${turno}</td><td>${estado}</td>`;
@@ -105,9 +102,8 @@
             }
         }
 
-        // Inicializar escáner y DB cuando el DOM esté listo
         document.addEventListener("DOMContentLoaded", () => {
-            // Inicializar escáner de inmediato
+            // Inicializar escáner inmediatamente
             let html5QrcodeScanner = new Html5QrcodeScanner(
                 "qr-reader", { fps: 10, qrbox: 250 });
             html5QrcodeScanner.render(checkID);
