@@ -27,8 +27,8 @@
     </select>
 
     <div id="qr-reader" style="width: 300px; margin-top:20px;"></div>
-    <div id="qr-result"></div>
-    <div id="qr-debug">Esperando QR...</div>
+    <div id="qr-result">Esperando QR...</div>
+    <div id="qr-debug">Cargando DB...</div>
 
     <h2>Historial</h2>
     <table id="historial">
@@ -44,18 +44,18 @@
     </table>
 
     <script>
-        const GET_URL = "https://script.google.com/macros/s/AKfycbyHgXccC8ygFN5w28-wMEsvLnvFBL2Is_CSQv6-DXiddNA1UZaoLLyv64ry_XXXKmf7/exec";
-        const POST_URL = GET_URL;
-        let DB = {}; 
-        let asistencia = []; 
+        const GET_URL = "https://script.google.com/macros/s/AKfycbyHgXccC8ygFN5w28-wMEsvLnvFBL2Is_CSQv6-DXiddNA1UZaoLLyv64ry_XXXKmf7/exec";        const POST_URL = GET_URL;
+        let DB = {};
+        let asistencia = [];
 
-        // Cargar residentes desde Google Sheets
+        // Cargar DB desde Web App
         async function loadDB(){
             try{
                 const res = await fetch(GET_URL);
                 const data = await res.json();
                 DB = {};
                 data.forEach(row => {
+                    // Ajusta la propiedad según tu JSON (ID o id)
                     DB[row.id.trim().toUpperCase()] = row;
                 });
                 document.getElementById("qr-debug").innerText = "DB cargada ✅";
@@ -64,9 +64,6 @@
                 document.getElementById("qr-debug").innerText = "Error cargando DB ❌";
             }
         }
-
-
-        loadDB();
 
         // Función que se llama cuando se escanea un QR
         async function checkID(id){
@@ -79,7 +76,7 @@
             const tbody = document.querySelector("#historial tbody");
 
             if(DB[id]){
-                let comida = Number(DB[id][turno].trim());
+                let comida = Number(DB[id][turno].toString().trim());
                 let estado = comida === 1 ? "Asistió" : "No asistió";
 
                 resultadoDiv.innerHTML = DB[id].Nombre + (estado=="Asistió" ? " puede comer ✅" : " NO tiene esta comida ❌");
@@ -101,24 +98,24 @@
                 const row = document.createElement("tr");
                 row.innerHTML = `<td>${id}</td><td>${DB[id].Nombre}</td><td>${turno}</td><td>${estado}</td>`;
                 tbody.appendChild(row);
+
             } else {
                 resultadoDiv.innerHTML = "ID no válido ❌";
                 resultadoDiv.className = "rojo";
             }
         }
 
-        // Inicializar escáner
-        function onScanSuccess(decodedText, decodedResult){
-            checkID(decodedText);
+        // Inicializar escáner después de cargar DB
+        async function initScanner(){
+            await loadDB();
+            let html5QrcodeScanner = new Html5QrcodeScanner(
+                "qr-reader", { fps: 10, qrbox: 250 });
+            html5QrcodeScanner.render(checkID);
         }
 
-        await loadDB(); // Espera a que la DB esté lista
-        let html5QrcodeScanner = new Html5QrcodeScanner(
-            "qr-reader", { fps: 10, qrbox: 250 });
-        html5QrcodeScanner.render(onScanSuccess);
+        initScanner();
 
-
-        // Actualizar la DB cada 10 segundos
+        // Recargar DB cada 10 segundos
         setInterval(loadDB, 10000);
     </script>
 </body>
