@@ -1,117 +1,182 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Residencia Comedor QR</title>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <style>
-        #qr-result { font-size: 1.2em; margin: 10px 0; }
-        #qr-debug { font-size: 1em; color: blue; margin: 5px 0; }
-        .verde { color: green; }
-        .rojo { color: red; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-        th, td { border: 1px solid black; padding: 5px; text-align: left; }
-    </style>
+  <meta charset="utf-8" />
+  <title>Residencia Comedor QR</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    #qr-result { font-size: 1.2em; margin: 10px 0; }
+    #qr-debug { font-size: 1em; color: blue; margin: 5px 0; }
+    .verde { color: green; }
+    .rojo { color: red; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #444; padding: 6px; text-align: left; }
+    #qr-reader { max-width: 420px; width: 100%; }
+  </style>
 </head>
 <body>
-    <h1>Residencia Comedor QR</h1>
-    
-    <label for="select-turno">Selecciona turno:</label>
-    <select id="select-turno">
-        <option value="Viernes_Comida">Viernes - Comida</option>
-        <option value="Viernes_Cena">Viernes - Cena</option>
-        <option value="Sabado_Comida">Sábado - Comida</option>
-        <option value="Sabado_Cena">Sábado - Cena</option>
-        <option value="Domingo_Comida">Domingo - Comida</option>
-        <option value="Domingo_Cena">Domingo - Cena</option>
-    </select>
+  <h1>Residencia Comedor QR</h1>
 
-    <div id="qr-reader" style="width: 300px; margin-top:20px;"></div>
-    <div id="qr-result">Esperando QR...</div>
-    <div id="qr-debug">Cargando DB...</div>
+  <label for="select-turno">Selecciona turno:</label>
+  <select id="select-turno">
+    <option value="Viernes_Comida">Viernes - Comida</option>
+    <option value="Viernes_Cena">Viernes - Cena</option>
+    <option value="Sabado_Comida">Sábado - Comida</option>
+    <option value="Sabado_Cena">Sábado - Cena</option>
+    <option value="Domingo_Comida">Domingo - Comida</option>
+    <option value="Domingo_Cena">Domingo - Cena</option>
+  </select>
 
-    <h2>Historial</h2>
-    <table id="historial">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Turno</th>
-                <th>Estado</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+  <div id="qr-reader" style="margin-top:20px;"></div>
+  <div id="qr-result">Esperando QR...</div>
+  <div id="qr-debug">Cargando DB...</div>
 
-    <script>
-        const GET_URL = "https://script.google.com/macros/s/AKfycbyHgXccC8ygFN5w28-wMEsvLnvFBL2Is_CSQv6-DXiddNA1UZaoLLyv64ry_XXXKmf7/exec";
-        const POST_URL = GET_URL;
-        let DB = {};
-        let asistencia = [];
+  <h2>Historial</h2>
+  <table id="historial">
+    <thead>
+      <tr><th>ID</th><th>Nombre</th><th>Turno</th><th>Estado</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-        async function loadDB(){
-            try {
-                const res = await fetch(GET_URL);
-                const data = await res.json();
-                DB = {};
-                data.forEach(row => {
-                    DB[row.ID.trim().toUpperCase()] = row; // Mayúsculas para normalizar
-                });
-                document.getElementById("qr-debug").innerText = "DB cargada ✅";
-                console.log("DB cargada:", DB);
-            } catch(err) {
-                console.error("Error cargando DB:", err);
-                document.getElementById("qr-debug").innerText = "Error cargando DB ❌";
-            }
-        }
+<script>
+/* ========== CONFIG ========== */
+const GET_URL = "https://script.google.com/macros/s/AKfycbzXXXXXXXXXXXXXXX/exec";
+const POST_URL = GET_URL;
 
-        async function checkID(id){
-            const debugDiv = document.getElementById("qr-debug");
-            debugDiv.innerText = "QR leído: [" + id + "]";
+/* ============================ */
 
-            id = id.trim().toUpperCase();
-            const turno = document.getElementById("select-turno").value;
-            const resultadoDiv = document.getElementById("qr-result");
-            const tbody = document.querySelector("#historial tbody");
+let DB = {};                     // base de datos residentes (normalizada por ID en mayúsculas)
+let asistencia = [];             // historial local
+let scannedThisTurn = new Set(); // clave: ID_TURNO para evitar re-escaneos en esta sesión
+let lastScanTime = {};           // para evitar dobles lecturas en poco tiempo (throttle)
 
-            if(DB[id]){
-                let comida = Number(DB[id][turno].toString().trim());
-                let estado = comida === 1 ? "Asistió" : "No asistió";
+/* ---- Cargar DB desde Web App ---- */
+async function loadDB(){
+  const debug = document.getElementById("qr-debug");
+  try {
+    const res = await fetch(GET_URL);
+    const data = await res.json();
+    DB = {};
+    data.forEach(row => {
+      // Usa la clave exactamente como la devuelve el JSON (aquí usamos "ID")
+      const rawId = (row.ID || row.Id || row.id || "").toString();
+      if(rawId.trim() !== ""){
+        DB[rawId.trim().toUpperCase()] = row;
+      }
+    });
+    debug.innerText = "DB cargada ✅ (" + Object.keys(DB).length + " residentes)";
+    console.log("DB:", DB);
+  } catch(err){
+    console.error("Error cargando DB:", err);
+    debug.innerText = "Error cargando DB ❌";
+  }
+}
 
-                resultadoDiv.innerHTML = DB[id].Nombre + (estado=="Asistió" ? " puede comer ✅" : " NO tiene esta comida ❌");
-                resultadoDiv.className = estado=="Asistió" ? "verde" : "rojo";
+/* ---- Manejo cambio de turno: limpiar bloqueo local ---- */
+document.getElementById("select-turno").addEventListener("change", () => {
+  scannedThisTurn.clear();
+  document.getElementById("qr-debug").innerText = "Turno cambiado — registros locales limpiados";
+});
 
-                try {
-                    await fetch(POST_URL, {
-                        method:"POST",
-                        headers:{"Content-Type":"application/json"},
-                        body: JSON.stringify({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado})
-                    });
-                } catch(e) {
-                    console.error("Error enviando asistencia:", e);
-                }
+/* ---- Función que valida y registra un ID escaneado ---- */
+async function registerScan(idRaw){
+  const debugDiv = document.getElementById("qr-debug");
+  const resultDiv = document.getElementById("qr-result");
+  const turno = document.getElementById("select-turno").value;
+  const tbody = document.querySelector("#historial tbody");
 
-                asistencia.push({id:id,nombre:DB[id].Nombre,turno:turno,estado:estado});
-                const row = document.createElement("tr");
-                row.innerHTML = `<td>${id}</td><td>${DB[id].Nombre}</td><td>${turno}</td><td>${estado}</td>`;
-                tbody.appendChild(row);
+  // normalizar
+  const id = idRaw.toString().trim().toUpperCase();
+  debugDiv.innerText = "QR leído: [" + idRaw + "] → normalizado: [" + id + "]";
 
-            } else {
-                resultadoDiv.innerHTML = "ID no válido ❌";
-                resultadoDiv.className = "rojo";
-            }
-        }
+  // throttle simple: ignorar si el mismo id se leyó en <1.5s
+  const now = Date.now();
+  if(lastScanTime[id] && (now - lastScanTime[id]) < 1500){
+    // evita que el mismo QR dispare 2 eventos seguidos por la cámara
+    console.log("Ignorado por throttle:", id);
+    return;
+  }
+  lastScanTime[id] = now;
 
-        document.addEventListener("DOMContentLoaded", () => {
-            // Inicializar escáner inmediatamente
-            let html5QrcodeScanner = new Html5QrcodeScanner(
-                "qr-reader", { fps: 10, qrbox: 250 });
-            html5QrcodeScanner.render(checkID);
+  const key = `${id}_${turno}`;
+  // bloqueo local inmediato
+  if(scannedThisTurn.has(key)){
+    resultDiv.innerHTML = "Ya registrado en este turno (local) ❌";
+    resultDiv.className = "rojo";
+    return;
+  }
 
-            // Cargar DB en segundo plano
-            loadDB();
-            setInterval(loadDB, 10000);
-        });
-    </script>
+  // existencia en DB
+  if(!DB[id]){
+    resultDiv.innerHTML = "ID no válido ❌";
+    resultDiv.className = "rojo";
+    return;
+  }
+
+  // comprobar si tiene derecho a comer
+  const turnoVal = DB[id][turno];
+  // normalizamos a número (puede venir 1, "1", true, etc.)
+  const comida = Number((turnoVal === undefined || turnoVal === null) ? 0 : turnoVal);
+  const estado = comida === 1 ? "Asistió" : "No asistió";
+
+  // enviar al servidor para registro definitivo (servidor hace comprobación de duplicados por día+turno)
+  try {
+    const resp = await fetch(POST_URL, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ id: id, nombre: DB[id].Nombre || "", turno: turno, estado: estado })
+    });
+
+    // esperar JSON válido
+    const json = await resp.json();
+    if(json && json.status === "ok"){
+      // aceptado: bloquear localmente y mostrar
+      scannedThisTurn.add(key);
+      resultDiv.innerHTML = DB[id].Nombre + (estado === "Asistió" ? " puede comer ✅" : " NO tiene esta comida ❌");
+      resultDiv.className = estado === "Asistió" ? "verde" : "rojo";
+
+      asistencia.push({ id, nombre: DB[id].Nombre, turno, estado });
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>${id}</td><td>${DB[id].Nombre}</td><td>${turno}</td><td>${estado}</td>`;
+      tbody.appendChild(row);
+
+    } else if(json && json.status === "duplicate"){
+      // servidor detectó duplicado (ya registrado hoy mismo)
+      scannedThisTurn.add(key); // opcional: bloquear localmente también
+      resultDiv.innerHTML = "Ya registrado en la hoja (duplicado) ❌";
+      resultDiv.className = "rojo";
+    } else {
+      // respuesta inesperada
+      console.warn("Respuesta POST inesperada", json);
+      resultDiv.innerHTML = "Error al registrar (intenta de nuevo) ❌";
+      resultDiv.className = "rojo";
+    }
+  } catch(err) {
+    console.error("Error enviando asistencia:", err);
+    resultDiv.innerHTML = "Error de red al registrar ❌";
+    resultDiv.className = "rojo";
+  }
+}
+
+/* ---- Wrapper que usa la API del escáner (recibe decodedText) ---- */
+function onScanSuccess(decodedText, decodedResult){
+  // decodedText es el contenido del QR (texto). Llamamos al registro.
+  registerScan(decodedText);
+}
+
+/* ---- Inicialización: escáner visible inmediatamente, DB en background ---- */
+document.addEventListener("DOMContentLoaded", () => {
+  // inicializa escáner YA (aparecerá el recuadro)
+  const html5QrcodeScanner = new Html5QrcodeScanner(
+    "qr-reader", { fps: 10, qrbox: 250 });
+  html5QrcodeScanner.render(onScanSuccess);
+  console.log("Escáner inicializado");
+
+  // cargar DB en segundo plano
+  loadDB();
+  setInterval(loadDB, 10000); // refrescar cada 10s
+});
+</script>
 </body>
 </html>
